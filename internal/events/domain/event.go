@@ -3,15 +3,19 @@ package domain
 import (
 	"errors"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 var (
-	ErrEventNameRequired = errors.New("event name is required")
-	ErrEventDateFuture = errors.New("event date must be in the future")
-	ErrEventCapacityZero = errors.New("event capacity must be greater than zero")
-	ErrEventPriceZero = errors.New("event price must be greater than zero")
+	ErrInvalidEvent    = errors.New("invalid event data")
+	ErrEventFull       = errors.New("event is full")
+	ErrTicketNotFound  = errors.New("ticket not found")
+	ErrTicketNotEnough = errors.New("not enough tickets available")
+	ErrEventNotFound   = errors.New("event not found")
 )
 
+// Rating represents the age restriction for an event.
 type Rating string
 
 const (
@@ -23,6 +27,12 @@ const (
 	Rating18    Rating = "L18"
 )
 
+type User struct {
+	ID    string
+	Email string
+}
+
+// Event represents an event with tickets and spots.
 type Event struct {
 	ID           string
 	Name         string
@@ -38,33 +48,51 @@ type Event struct {
 	Tickets      []Ticket
 }
 
-func (e Event) Validate() error {
+// NewEvent creates a new event with the given parameters.
+func NewEvent(name, location, organization string, rating Rating, date time.Time, capacity int, price float64, imageUrl string, partnerID int) (*Event, error) {
+	event := &Event{
+		ID:           uuid.New().String(),
+		Name:         name,
+		Location:     location,
+		Organization: organization,
+		Rating:       rating,
+		Date:         date,
+		Capacity:     capacity,
+		Price:        price,
+		ImageURL:     imageUrl,
+		PartnerID:    partnerID,
+		Spots:        make([]Spot, 0),
+	}
+	if err := event.Validate(); err != nil {
+		return nil, err
+	}
+	return event, nil
+}
+
+// Validate checks if the event data is valid.
+func (e *Event) Validate() error {
 	if e.Name == "" {
-		return ErrEventNameRequired
+		return errors.New("event name is required")
 	}
-
 	if e.Date.Before(time.Now()) {
-		return ErrEventDateFuture
+		return errors.New("event date must be in the future")
 	}
-
 	if e.Capacity <= 0 {
-		return ErrEventCapacityZero
+		return errors.New("event capacity must be greater than zero")
 	}
-
-	if e.Price < 0 {
-		return ErrEventPriceZero
+	if e.Price <= 0 {
+		return errors.New("event price must be greater than zero")
 	}
 
 	return nil
 }
 
+// AddSpot adds a spot to the event.
 func (e *Event) AddSpot(name string) (*Spot, error) {
 	spot, err := NewSpot(e, name)
 	if err != nil {
 		return nil, err
 	}
-
 	e.Spots = append(e.Spots, *spot)
-
 	return spot, nil
 }
