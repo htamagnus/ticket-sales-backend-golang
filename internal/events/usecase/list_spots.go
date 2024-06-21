@@ -39,7 +39,7 @@ func (uc *ListSpotsUseCase) Execute(input ListSpotsInputDTO) (*ListSpotsOutputDT
 			ID:       spot.ID,
 			Name:     spot.Name,
 			Status:   string(spot.Status),
-			TicketId: spot.TicketId,
+			TicketID: spot.TicketID,
 		}
 	}
 
