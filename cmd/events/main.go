@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -11,11 +12,30 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/julienschmidt/httprouter"
 	httpHandler "github.com/htamagnus/ticket-sales-backend-golang/internal/events/infra/http"
 	"github.com/htamagnus/ticket-sales-backend-golang/internal/events/infra/repository"
 	"github.com/htamagnus/ticket-sales-backend-golang/internal/events/infra/service"
 	"github.com/htamagnus/ticket-sales-backend-golang/internal/events/usecase"
+	"github.com/htamagnus/ticket-sales-backend-golang/internal/events/domain"
 )
+
+var data domain.Data
+
+func init() {
+	// Carregar JSON na inicialização do programa
+	file, err := os.Open("data.json")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&data)
+	if err != nil {
+		panic(err)
+	}
+}
 
 // @title Events API
 // @version 1.0
@@ -58,19 +78,18 @@ func main() {
 		buyTicketsUseCase,
 		createSpotsUseCase,
 		listSpotsUseCase,
+		&data,
 	)
 
-	r := http.NewServeMux()
-	r.HandleFunc("/events", eventsHandler.ListEvents)
-	r.HandleFunc("/events/{eventID}", eventsHandler.GetEvent)
-	r.HandleFunc("/events/{eventID}/spots", eventsHandler.ListSpots)
-	r.HandleFunc("POST /events", eventsHandler.CreateEvent)
-	r.HandleFunc("POST /checkout", eventsHandler.BuyTickets)
-	r.HandleFunc("POST /events/{eventID}/spots", eventsHandler.CreateSpots)
+	router := httprouter.New()
+	router.GET("/events", eventsHandler.ListEvents)
+	router.GET("/events/:eventID", eventsHandler.GetEvent)
+	router.GET("/events/:eventID/spots", eventsHandler.ListSpots)
+	router.POST("/events/:eventID/spots/:spotID/reserve", eventsHandler.ReserveSpot)
 
 	server := &http.Server{
 		Addr:    ":8080",
-		Handler: r,
+		Handler: router,
 	}
 
 	// Canal para escutar sinais do sistema operacional
