@@ -3,21 +3,23 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"github.com/julienschmidt/httprouter"
 
 	"github.com/htamagnus/ticket-sales-backend-golang/internal/events/usecase"
+	"github.com/htamagnus/ticket-sales-backend-golang/internal/events/domain"
 )
 
 // EventsHandler handles HTTP requests for events.
 type EventsHandler struct {
-	listEventsUseCase  *usecase.ListEventsUseCase
-	getEventUseCase    *usecase.GetEventUseCase
-	createEventUseCase *usecase.CreateEventUseCase
-	buyTicketsUseCase  *usecase.BuyTicketsUseCase
-	createSpotsUseCase *usecase.CreateSpotsUseCase
-	listSpotsUseCase   *usecase.ListSpotsUseCase
+	ListEventsUseCase  *usecase.ListEventsUseCase
+	GetEventUseCase    *usecase.GetEventUseCase
+	CreateEventUseCase *usecase.CreateEventUseCase
+	BuyTicketsUseCase  *usecase.BuyTicketsUseCase
+	CreateSpotsUseCase *usecase.CreateSpotsUseCase
+	ListSpotsUseCase   *usecase.ListSpotsUseCase
+	Data               *domain.Data
 }
 
-// NewEventsHandler creates a new EventsHandler.
 func NewEventsHandler(
 	listEventsUseCase *usecase.ListEventsUseCase,
 	getEventUseCase *usecase.GetEventUseCase,
@@ -25,14 +27,16 @@ func NewEventsHandler(
 	buyTicketsUseCase *usecase.BuyTicketsUseCase,
 	createSpotsUseCase *usecase.CreateSpotsUseCase,
 	listSpotsUseCase *usecase.ListSpotsUseCase,
+	data *domain.Data,
 ) *EventsHandler {
 	return &EventsHandler{
-		listEventsUseCase:  listEventsUseCase,
-		getEventUseCase:    getEventUseCase,
-		createEventUseCase: createEventUseCase,
-		buyTicketsUseCase:  buyTicketsUseCase,
-		createSpotsUseCase: createSpotsUseCase,
-		listSpotsUseCase:   listSpotsUseCase,
+		ListEventsUseCase:  listEventsUseCase,
+		GetEventUseCase:    getEventUseCase,
+		CreateEventUseCase: createEventUseCase,
+		BuyTicketsUseCase:  buyTicketsUseCase,
+		CreateSpotsUseCase: createSpotsUseCase,
+		ListSpotsUseCase:   listSpotsUseCase,
+		Data:               data,
 	}
 }
 
@@ -45,15 +49,10 @@ func NewEventsHandler(
 // @Success 200 {object} usecase.ListEventsOutputDTO
 // @Failure 500 {object} string
 // @Router /events [get]
-func (h *EventsHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
-	output, err := h.listEventsUseCase.Execute()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 
+func (h *EventsHandler) ListEvents(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(output)
+	json.NewEncoder(w).Encode(h.Data.Events)
 }
 
 // GetEvent handles the request to get details of a specific event.
@@ -68,107 +67,24 @@ func (h *EventsHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} string
 // @Failure 500 {object} string
 // @Router /events/{eventID} [get]
-func (h *EventsHandler) GetEvent(w http.ResponseWriter, r *http.Request) {
-	eventID := r.PathValue("eventID")
-	input := usecase.GetEventInputDTO{ID: eventID}
+func (h *EventsHandler) GetEvent(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	eventID := ps.ByName("eventID")
 
-	output, err := h.getEventUseCase.Execute(input)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	var event *domain.Event
+	for _, e := range h.Data.Events {
+		if e.ID == eventID {
+			event = &e
+			break
+		}
+	}
+
+	if event == nil {
+		http.Error(w, "Event not found", http.StatusNotFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(output)
-}
-
-// CreateEvent handles the request to create a new event.
-// @Summary Create a new event
-// @Description Create a new event with the given details
-// @Tags Events
-// @Accept json
-// @Produce json
-// @Param input body usecase.CreateEventInputDTO true "Input data"
-// @Success 201 {object} usecase.CreateEventOutputDTO
-// @Failure 400 {object} string
-// @Failure 500 {object} string
-// @Router /events [post]
-func (h *EventsHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
-	var input usecase.CreateEventInputDTO
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	output, err := h.createEventUseCase.Execute(input)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(output)
-}
-
-// BuyTickets handles the request to buy tickets for an event.
-// @Summary Buy tickets for an event
-// @Description Buy tickets for a specific event
-// @Tags Events
-// @Accept json
-// @Produce json
-// @Param input body usecase.BuyTicketsInputDTO true "Input data"
-// @Success 200 {object} usecase.BuyTicketsOutputDTO
-// @Failure 400 {object} string
-// @Failure 500 {object} string
-// @Router /checkout [post]
-func (h *EventsHandler) BuyTickets(w http.ResponseWriter, r *http.Request) {
-	var input usecase.BuyTicketsInputDTO
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	output, err := h.buyTicketsUseCase.Execute(input)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(output)
-}
-
-// CreateSpots handles the creation of spots.
-// @Summary Create spots for an event
-// @Description Create a specified number of spots for an event
-// @Tags Events
-// @Accept json
-// @Produce json
-// @Param eventID path string true "Event ID"
-// @Param input body CreateSpotsRequest true "Input data"
-// @Success 201 {object} usecase.CreateSpotsOutputDTO
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /events/{eventID}/spots [post]
-func (h *EventsHandler) CreateSpots(w http.ResponseWriter, r *http.Request) {
-	eventID := r.PathValue("eventID")
-	var input usecase.CreateSpotsInputDTO
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	input.EventID = eventID
-
-	output, err := h.createSpotsUseCase.Execute(input)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(output)
+	json.NewEncoder(w).Encode(event)
 }
 
 // writeErrorResponse writes an error response in JSON format
@@ -198,16 +114,47 @@ type CreateSpotsRequest struct {
 // @Failure 400 {object} string
 // @Failure 500 {object} string
 // @Router /events/{eventID}/spots [get]
-func (h *EventsHandler) ListSpots(w http.ResponseWriter, r *http.Request) {
-	eventID := r.PathValue("eventID")
-	input := usecase.ListSpotsInputDTO{EventID: eventID}
+func (h *EventsHandler) ListSpots(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	eventID := ps.ByName("eventID")
 
-	output, err := h.listSpotsUseCase.Execute(input)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	var spots []domain.Spot
+	for _, s := range h.Data.Spots {
+		if s.EventID == eventID {
+			spots = append(spots, s)
+		}
+	}
+
+	if len(spots) == 0 {
+		http.Error(w, "No spots found for this event", http.StatusNotFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(output)
+	json.NewEncoder(w).Encode(spots)
+}
+
+func (h *EventsHandler) ReserveSpot(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	eventID := ps.ByName("eventID")
+	spotID := ps.ByName("spotID")
+
+	var reservedSpot *domain.Spot
+	for i, s := range h.Data.Spots {
+		if s.EventID == eventID && s.ID == spotID {
+			if s.Status == "reserved" {
+				http.Error(w, "Spot already reserved", http.StatusConflict)
+				return
+			}
+			h.Data.Spots[i].Status = "reserved"
+			reservedSpot = &h.Data.Spots[i]
+			break
+		}
+	}
+
+	if reservedSpot == nil {
+		http.Error(w, "Spot not found for this event", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(reservedSpot)
 }
