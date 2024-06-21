@@ -3,12 +3,11 @@ package usecase
 type SpotDTO struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
-	Status   string `json:"status"`
-	TicketId string `json:"ticket_id"`
+	EventID  string `json:"event_id"`
 	Reserved bool   `json:"reserved"`
-	EventID string `json:"event_id"`
+	Status   string `json:"status"`
+	TicketID string `json:"ticket_id"`
 }
-
 
 type EventDTO struct {
 	ID           string  `json:"id"`
@@ -21,4 +20,11 @@ type EventDTO struct {
 	Capacity     int     `json:"capacity"`
 	Price        float64 `json:"price"`
 	PartnerID    int     `json:"partner_id"`
+}
+
+type TicketDTO struct {
+	ID         string  `json:"id"`
+	SpotID     string  `json:"spot_id"`
+	TicketType string  `json:"ticket_type"`
+	Price      float64 `json:"price"`
 }
