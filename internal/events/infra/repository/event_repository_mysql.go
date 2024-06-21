@@ -285,5 +285,16 @@ func (r *mysqlEventRepository) CreateTicket(ticket *domain.Ticket) error {
 	return err
 }
 
+// ReserveSpot updates a spot's status to reserved.
+func (r *mysqlEventRepository) ReserveSpot(spotID, ticketID string) error {
+	query := `
+		UPDATE spots
+		SET status = ?, ticket_id = ?
+		WHERE id = ?
+	`
+	_, err := r.db.Exec(query, domain.SpotStatusSold, ticketID, spotID)
+	return err
+}
+
 
 }
