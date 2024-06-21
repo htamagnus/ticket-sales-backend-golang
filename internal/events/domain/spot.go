@@ -27,7 +27,7 @@ type Spot struct {
 	EventID  string
 	Name     string
 	Status   SpotStatus
-	TicketId string
+	TicketID string
 }
 
 func NewSpot(event *Event, name string) (*Spot, error) {
@@ -71,7 +71,7 @@ func (s *Spot) Reserve(ticketId string) error {
 	}
 
 	s.Status = SpotStatusSold
-	s.TicketId = ticketId
+	s.TicketID = ticketId
 
 	return nil
 }
