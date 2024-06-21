@@ -118,4 +118,101 @@ func (r *mysqlEventRepository) ListEvents() ([]domain.Event, error) {
 	return events, nil
 }
 
+// FindEventByID returns an event by its ID, including associated spots and tickets.
+func (r *mysqlEventRepository) FindEventByID(eventID string) (*domain.Event, error) {
+	query := `
+		SELECT 
+			e.id, e.name, e.location, e.organization, e.rating, e.date, e.image_url, e.capacity, e.price, e.partner_id,
+			s.id, s.event_id, s.name, s.status, s.ticket_id,
+			t.id, t.event_id, t.spot_id, t.ticket_type, t.price
+		FROM events e
+		LEFT JOIN spots s ON e.id = s.event_id
+		LEFT JOIN tickets t ON s.id = t.spot_id
+		WHERE e.id = ?
+	`
+	rows, err := r.db.Query(query, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var event *domain.Event
+	for rows.Next() {
+		var eventIDStr, eventName, eventLocation, eventOrganization, eventRating, eventImageURL, spotID, spotEventID, spotName, spotStatus, spotTicketID, ticketID, ticketEventID, ticketSpotID, ticketType sql.NullString
+		var eventDate sql.NullString
+		var eventCapacity int
+		var eventPrice, ticketPrice sql.NullFloat64
+		var partnerID sql.NullInt32
+
+		err := rows.Scan(
+			&eventIDStr, &eventName, &eventLocation, &eventOrganization, &eventRating, &eventDate, &eventImageURL, &eventCapacity, &eventPrice, &partnerID,
+			&spotID, &spotEventID, &spotName, &spotStatus, &spotTicketID,
+			&ticketID, &ticketEventID, &ticketSpotID, &ticketType, &ticketPrice,
+		)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, domain.ErrEventNotFound
+			}
+			return nil, err
+		}
+
+		if !eventIDStr.Valid || !eventName.Valid || !eventLocation.Valid || !eventOrganization.Valid || !eventRating.Valid || !eventDate.Valid || !eventImageURL.Valid || !eventPrice.Valid || !partnerID.Valid {
+			continue
+		}
+
+		if event == nil {
+			eventDateParsed, err := time.Parse("2006-01-02 15:04:05", eventDate.String)
+			if err != nil {
+				return nil, err
+			}
+			event = &domain.Event{
+				ID:           eventIDStr.String,
+				Name:         eventName.String,
+				Location:     eventLocation.String,
+				Organization: eventOrganization.String,
+				Rating:       domain.Rating(eventRating.String),
+				Date:         eventDateParsed,
+				ImageURL:     eventImageURL.String,
+				Capacity:     eventCapacity,
+				Price:        eventPrice.Float64,
+				PartnerID:    int(partnerID.Int32),
+				Spots:        []domain.Spot{},
+				Tickets:      []domain.Ticket{},
+			}
+		}
+
+		if spotID.Valid {
+			spot := domain.Spot{
+				ID:       spotID.String,
+				EventID:  spotEventID.String,
+				Name:     spotName.String,
+				Status:   domain.SpotStatus(spotStatus.String),
+				TicketID: spotTicketID.String,
+			}
+			event.Spots = append(event.Spots, spot)
+
+			if ticketID.Valid {
+				ticket := domain.Ticket{
+					ID:         ticketID.String,
+					EventID:    ticketEventID.String,
+					Spot:       &spot,
+					TicketType: domain.TicketType(ticketType.String),
+					Price:      ticketPrice.Float64,
+				}
+				event.Tickets = append(event.Tickets, ticket)
+			}
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if event == nil {
+		return nil, domain.ErrEventNotFound
+	}
+
+	return event, nil
+}
+
 }
